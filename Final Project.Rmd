@@ -1,0 +1,573 @@
+---
+title: "320 Final Project"
+author: "Stephen Kozak"
+date: "May 15, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(broom)
+library(tidyverse)
+```
+
+# The Theory
+As a lifelong fan of anime, I have wanted to do some analysis of anime for quite some time. This caused me to do this final project with anime as the main topic. If strong analysis was done to determine what type of anime is most popular when produced by who, or what genre is most popular in what format, there is a lot of money to be made. 
+
+
+***Note, if you're not interested in the somewhat-messy code, please skip ahead to the Analysis Section***
+
+### Web Scraping
+There is a website called MyAnimeList.net, which is by far the most comprehensive database of anime, however there's no easy way to gather this data (I.E. no download-as-csv button). Therefore for me to do this project the way I want, I need to create a program to go though and gather the data. (Here is an example of what a show's page looks like https://myanimelist.net/anime/7785/Yojouhan_Shinwa_Taikei)
+
+```{r, eval=F}
+#MAL Spider
+source("~/../Desktop/SendEmailFolderThroughR/SendEmail1.R")
+assign("last.warning", NULL, envir = baseenv())
+setwd("~/../Desktop/Finals")
+if(!("lubridate" %in% installed.packages())){install.packages("lubridate");library("lubridate")}else{library(lubridate)}
+if(!("rvest" %in% installed.packages())){install.packages("rvest");library("rvest")}else{library(rvest)}
+x<-1
+Number_Of_Shows <- 9500 #Multiple of 50 for now
+url<-"http://myanimelist.net/topanime.php"
+Top_Shows<-c()#
+Show_Name<-c()#
+English<-c()#
+Type<-c()#
+Score<-c()#
+Rank<-c()#
+Episodes<-c()#
+Genre<-c()#
+Popularity<-c()#
+Members<-c()#
+Favorites<-c()#
+Premiered<-c()#
+Users<-c()#
+Source<-c()#
+Licensors<-c()#
+Producers<-c()#
+Studios<-c()#
+h<-0
+DIVV<-Number_Of_Shows/50
+Sessions<-c(1:DIVV+1)
+URLS<-c(1:DIVV+1)
+Start_Time <- Sys.time()
+Total_Time <- 0
+while(x<=DIVV){ # while not on last page
+  C_Time <- Sys.time()
+  print(paste("Starting Page:", (x), "of", DIVV))
+  if(x!=1){
+    URLS<-paste(url, "?limit=", (x-1)*50, sep = "")
+  }else{
+    URLS<-url
+  }
+  print(paste("Created URL: ", URLS))
+  Session<-html_session(URLS)
+  print(paste("Scraping Links"))
+  Top_Shows<- Session %>%
+    html_nodes(".fs14.fw-b") %>%
+    html_text()
+  if(tryCatch({Rank<-c(Rank, Session %>%
+    html_nodes(".top-anime-rank-text") %>%
+    html_text());TRUE},error=function(x){FALSE})){
+  } else {
+    Rank<-c(Rank, "")
+  }
+  for(i in 1:length(Top_Shows)){
+    Sys.sleep(3) # Without this the connection gets dropped -: Too many requests
+    if(tryCatch({Clicked<-follow_link(Session, Top_Shows[i]);TRUE}, error=function(x){FALSE})){
+      print(paste("Now Extracting the Show Data for show", i, "of", length(Top_Shows), "| ", (x-1)*50+i, "of", DIVV*50))
+      Text<-Clicked %>%
+        html_nodes(".js-scrollfix-bottom .spaceit , .js-scrollfix-bottom .spaceit+ div , .js-scrollfix-bottom .spaceit_pad , .js-scrollfix-bottom h2+ div") %>%
+        html_text()
+      ###Extract English Name
+      if(tryCatch({v<-grep("English:", Text);if(length(v)!=0){English<-c(English, gsub("\n|^\\s+English:\\s+|\\s+$", "", Text[v]))} else {English<-c(English, "")};TRUE}, error=function(x){FALSE})){v<-0} else { print("English Name not Available"); English<-c(English,"")}
+      if(tryCatch({v<-grep("Type:", Text);if(length(v)!=0){Type<-c(Type, gsub("\n|^\\s+Type:\\s+|\\s+$", "", Text[v]))} else {Type<-c(Type, "")};TRUE}, error=function(x){FALSE})){v<-0} else { print("Type not Available"); Type<-c(Type,"")}
+      if(tryCatch({v<-grep("Episodes:", Text);if(length(v)!=0){Episodes<-c(Episodes, gsub("\\D", "", Text[v]))} else{Episode<-c(Episode, "")};TRUE}, error=function(x){FALSE})){v<-0}else{print("Episodes not Available");Episodes<-c(Episodes,"")}
+      if(tryCatch({v<-grep("Genres:", Text);if(length(v)!=0){Genre<-c(Genre, gsub("^.*Genres:\n\\s+|\\s+$","",Text[v]))} else{Genre<-c(Genre,"")};TRUE},error=function(x){FALSE})){v<-0}else{print("Genres not Available");Genre<-c(Genre,"")}
+      if(tryCatch({v<-grep("Source:", Text);if(length(v)!=0){Source<-c(Source, gsub("\n|^\\s+Source:\\s+|\\s+$", "", Text[v]))} else {Source<-c(Source, "")};TRUE}, error=function(x){FALSE})){v<-0} else { print("Source not Available"); Source<-c(Source,"")}
+      if(tryCatch({v<-grep("Popularity:",Text);if(length(v)!=0){Popularity<-c(Popularity,gsub("\\D", "", Text[v]))}else{Popularity<-c(Popularity, "")};TRUE},error=function(x){FALSE})){v<-0}else{print("Popularity not Available");Popularity<-c(Popularity,"")}
+      if(tryCatch({v<-grep("Members:", Text);if(length(v)!=0){Members<-c(Members, gsub("\\D", "", Text[v]))}else{Members<-c(Members, "")};TRUE}, error=function(X){FALSE})){v<-0}else{print("Members not Available");Members<-c(Members, "")}
+      if(tryCatch({v<-grep("Favorites:", Text);if(length(v)!=0){Favorites<-c(Favorites,gsub("\\D", "", Text[v]))}else{Favorites<-c(Favorites,"")};TRUE},error=function(x){FALSE})){v<-0}else{print("Favorites not Available");Favorites<-c(Favorites,"")}
+      # Premiered needs to be edited, 65% of data is lost like this sadly
+      if(tryCatch({v<-grep("Premiered:", Text);if(length(v)!=0){Premiered<-c(Premiered,gsub("^.*Premiered:\n\\s+|\n\\s+$", "", Text[v]))}else{Premiered<-c(Premiered,"")};TRUE}, error=function(x){FALSE})){v<-0}else{print("Premiere Data not Available");Premiered<-c(Premiered,"")}
+      if(tryCatch({v<-grep("users)", Text);if(length(v)!=0){Users<-c(Users,gsub("\\D", "", gsub("^.*\\(|\\).*$", "", Text[v])))}else{Users<-c(Users, "")};TRUE},error=function(x){FALSE})){v<-0}else{print("Users Data not Available");Users<-c(Users,"")}
+      if(tryCatch({v<-grep("Licensors:", Text);if(length(v)!=0){Licensors<-c(Licensors,gsub("^.*Licensors:\\s+|\\s+$", "", gsub("\n", "", gsub("\\s+", " ", Text[v]))))}else{Licensors<-c(Licensors, "")};TRUE},error=function(x){FALSE})){v<-0}else{print("Licensor Data not Available");Licensors<-c(Licensors, "")}
+      if(tryCatch({v<-grep("Producers:", Text);if(length(v)!=0){Producers<-c(Producers,gsub("^.*Producers:\\s+|\\s+$", "", gsub("\n", "", gsub("\\s+", " ", Text[v]))))}else{Producers<-c(Producers,"")};TRUE},error=function(x){FALSE})){v<-0}else{print("Producers not Available");Producers<-c(Producers,"")}
+      if(tryCatch({v<-grep("Studios:",Text);if(length(v)!=0){Studios<-c(Studios,gsub("^.*Studios:\\s+|\\s+$", "", gsub("\n", "", gsub("\\s+", " ", Text[v]))))}else{Studios<-c(Studios,"")};TRUE},error=function(x){FALSE})){v<-0}else{print("Studios not Available");Studios<-c(Studios,"")}
+      #Here is the trycatch expanded
+      if(
+        tryCatch({
+          v<-grep("users)", Text);
+          if(length(v)!=0){
+            h<-gsub("^.*Score:\n\\s+|\\(.*$|\\D", "", Text[v]);
+            h<-substring(h,1,3);
+            h<-paste(substring(h,1,1),".",substring(h,2,3));
+            h<-gsub("\\s", "", h);
+            Score<-c(Score,h)
+          }else{
+            Score<-c(Score, "")
+          };TRUE
+        },
+        error=function(x){FALSE})){
+          v<-0
+      }else{
+        print("Score not Avalible");
+        Score<-c(Score,"")
+      }
+    }  else {
+      print(paste("Extraction Failed for", Top_Shows[i]))
+      Users<-c(Users, "")
+      Type<-c(Type, "")
+      Popularity<-c(Popularity, "")
+      English<-c(English, "")
+      Members<-c(Members, "")
+      Favorites<-c(Favorites, "")
+      Genre<-c(Genre,"")
+      Licensors<-c(Licensors,"")
+      Studios<-c(Studios, "")
+      Source<-c(Source, "")
+      Producers<-c(Producers, "")
+      Premiered<-c(Premiered, "")
+      Episodes<-c(Episodes,"")
+      Score<-c(Score,"")
+    }
+  }
+  Show_Name<-c(Show_Name, Top_Shows)
+  x<-x+1
+  End_Time <- Sys.time()
+  This_Page <- End_Time - C_Time
+  Total_Time <- Total_Time + This_Page
+  print(paste("----------------------------------------"))
+  print(paste("THIS PAGE TIME: ", This_Page, " Minutes", sep = ""))
+  print(paste("TOTAL TIME:", Total_Time, "Minutes"))
+  print(paste("ESTIMATED REMAINING TIME: ", (Total_Time/(x-1))*(DIVV-x+1), " Minutes", sep = ""))
+}
+Frame<-data.frame(Show_Name, English, Type, Episodes, Rank, Score, Users, Popularity, Members, Favorites, Genre, Source, Licensors, Studios, Producers, Premiered)
+write.csv(Frame, file = paste("Top", DIVV*50,  "Anime Data.csv"), row.names = FALSE)
+Build_Email(Subject = "MAL Spider", 
+            Body = paste("MAL Spider has finished gathering the top", Number_Of_Shows, "shows.", length(warnings()), "Warning Messages."))
+Send_Email()
+```
+
+### Head of the file
+To break this down step by step, first lets look at the first couple lines. 
+
+```{r, eval=F}
+#MAL Spider
+source("~/../Desktop/SendEmailFolderThroughR/SendEmail1.R")
+assign("last.warning", NULL, envir = baseenv())
+setwd("~/../Desktop/Finals")
+if(!("lubridate" %in% installed.packages())){install.packages("lubridate");library("lubridate")}else{library(lubridate)}
+if(!("rvest" %in% installed.packages())){install.packages("rvest");library("rvest")}else{library(rvest)}
+x<-1
+Number_Of_Shows <- 9500 #Multiple of 50 for now
+url<-"http://myanimelist.net/topanime.php"
+Top_Shows<-c()#
+Show_Name<-c()#
+English<-c()#
+Type<-c()#
+Score<-c()#
+Rank<-c()#
+Episodes<-c()#
+Genre<-c()#
+Popularity<-c()#
+Members<-c()#
+Favorites<-c()#
+Premiered<-c()#
+Users<-c()#
+Source<-c()#
+Licensors<-c()#
+Producers<-c()#
+Studios<-c()#
+h<-0
+DIVV<-Number_Of_Shows/50
+Sessions<-c(1:DIVV+1)
+URLS<-c(1:DIVV+1)
+Start_Time <- Sys.time()
+Total_Time <- 0
+```
+First, I source a script of my own invention. This is a script I wrote that allows me to send a text to my phone though a powershell script. I then wipe out any warnings in the cache, this is because when I send an email to my phone, I want an accurate count on the number of errors I got. 
+Then there's some directory setting stuff, the package install/loads, and then the variable setup. 
+
+This implemention of the code works with multiples of 50 shows, which is fine as each page on myanimelist's website displays 50 shows at a time. 
+There are many, many more anime than only 9500, however, MyAnimeList doesnt accept them all as being "ranked" due to the low number of user ratings for these shows. For example, I could make a 5 second animation and upload it, but just because 1 out of 1 persons rate my animation a 10/10 doesnt mean it deserves to be the number 1 show on the website. Therefore MyAnimeList requires shows be popular enough to some extent before they are considered "valid". I chose to use the same criteria.
+
+Each vector is used to store some kind of data about a show, meanwhile I also calculate how many pages I will be required to visit, and take the current time to track my progress. 
+
+### Beginning of the loop
+```{r, eval = F}
+C_Time <- Sys.time()
+  print(paste("Starting Page:", (x), "of", DIVV))
+  if(x!=1){
+    URLS<-paste(url, "?limit=", (x-1)*50, sep = "")
+  }else{
+    URLS<-url
+  }
+  print(paste("Created URL: ", URLS))
+  Session<-html_session(URLS)
+  print(paste("Scraping Links"))
+  Top_Shows<- Session %>%
+    html_nodes(".fs14.fw-b") %>%
+    html_text()
+  if(tryCatch({Rank<-c(Rank, Session %>%
+    html_nodes(".top-anime-rank-text") %>%
+    html_text());TRUE},error=function(x){FALSE})){
+  } else {
+    Rank<-c(Rank, "")
+  }
+```
+
+This bit of the code is in a loop, and each time it runs it will lead to a page with 50 shows listed on it.
+It takes the current time, this is used to estimate how long it takes to go though the 50 shows on the current page. 
+It does some fancy printing and generates a new url, takes a list of the URLS for each of the 50 shows on the current page, and then enters a loop to go though those shows, and actually gather the data. 
+
+### The Inner Loop
+```{r, eval=F}
+Sys.sleep(3) # Without this the connection gets dropped -: Too many requests
+    if(tryCatch({Clicked<-follow_link(Session, Top_Shows[i]);TRUE}, error=function(x){FALSE})){
+      print(paste("Now Extracting the Show Data for show", i, "of", length(Top_Shows), "| ", (x-1)*50+i, "of", DIVV*50))
+      Text<-Clicked %>%
+        html_nodes(".js-scrollfix-bottom .spaceit , .js-scrollfix-bottom .spaceit+ div , .js-scrollfix-bottom .spaceit_pad , .js-scrollfix-bottom h2+ div") %>%
+        html_text()
+      ###Extract English Name
+      #Here is the trycatch expanded
+      if(
+        tryCatch({
+          v<-grep("users)", Text);
+          if(length(v)!=0){
+            h<-gsub("^.*Score:\n\\s+|\\(.*$|\\D", "", Text[v]);
+            h<-substring(h,1,3);
+            h<-paste(substring(h,1,1),".",substring(h,2,3));
+            h<-gsub("\\s", "", h);
+            Score<-c(Score,h)
+          }else{
+            Score<-c(Score, "")
+          };TRUE
+        },
+        error=function(x){FALSE})){
+          v<-0
+      }else{
+        print("Score not Avalible");
+        Score<-c(Score,"")
+      }
+  }  else {
+      print(paste("Extraction Failed for", Top_Shows[i]))
+      Users<-c(Users, "")
+      Type<-c(Type, "")
+      Popularity<-c(Popularity, "")
+      English<-c(English, "")
+      Members<-c(Members, "")
+      Favorites<-c(Favorites, "")
+      Genre<-c(Genre,"")
+      Licensors<-c(Licensors,"")
+      Studios<-c(Studios, "")
+      Source<-c(Source, "")
+      Producers<-c(Producers, "")
+      Premiered<-c(Premiered, "")
+      Episodes<-c(Episodes,"")
+      Score<-c(Score,"")
+  }
+```
+I am well aware how messy this is, however it was easiest for me to stick all of these as a one line if statement, it ends up taking a lot of space up to expand all of these out. 
+
+When this segment of code is ran, it accesses one of the 50 links from the main page it was just on, and gathers a vector of data which includes all of these relevant data points (This vector is called `v`)
+
+If the data is not included, or variables I am not listing are included, the placement of say "genres" will change in `v`, therefore I need to activly search for which index in `v` "genres" is, and then gather the relevant data from that index. The TryCatch is there in case the data is not found, or an error occurs. This will ensure the relevant fields are still populated with something, and the length of each vector is maintained. 
+
+Should the program fail to render the page for some reason (which does happen) the program will throw an error, and populate all of the vectors with nothing, and move to the next entry. 
+(I admit this could have been done neater, and a second attempt would yield a much cleaner segment of code for this section)
+
+### Time Issues
+```{r, eval = F}
+Show_Name<-c(Show_Name, Top_Shows)
+  x<-x+1
+  End_Time <- Sys.time()
+  This_Page <- End_Time - C_Time
+  Total_Time <- Total_Time + This_Page
+  print(paste("----------------------------------------"))
+  print(paste("THIS PAGE TIME: ", This_Page, " Minutes", sep = ""))
+  print(paste("TOTAL TIME:", Total_Time, "Minutes"))
+  print(paste("ESTIMATED REMAINING TIME: ", (Total_Time/(x-1))*(DIVV-x+1), " Minutes", sep = ""))
+```
+Once the program reaches the end of the loop, it will record and display time data, estimate how much longer the program is expected to run, and move on. 
+
+The main reason for doing this time calculation was because of HTTP 429. This error was displayed because I made too many requests to MyAnimeList in a certain time period, so I had to add a Sys.Sleep(3) command before accessing any page. Because accessing a page took about a second, and I was waiting an additional three seconds, this entire program took about 9 hours to run. This is also why I had my program text me when it finished. I originally had the sleep command set to only 1 second, ran my code, and left my computer. Within a few minutes I got a text saying my program had finished with 1 warning, which informed me that a problem had occured. Without this email/text I would have thought my program was running all night, and been very upset the next day when I found out nothing had been happening all night. 
+
+### End of Data Collection
+```{r, eval=F}
+
+Frame<-data.frame(Show_Name, English, Type, Episodes, Rank, Score, Users, Popularity, Members, Favorites, Genre, Source, Licensors, Studios, Producers, Premiered)
+write.csv(Frame, file = paste("Top", DIVV*50,  "Anime Data.csv"), row.names = FALSE)
+Build_Email(Subject = "MAL Spider", 
+            Body = paste("MAL Spider has finished gathering the top", Number_Of_Shows, "shows.", length(warnings()), "Warning Messages."))
+Send_Email()
+```
+
+Alas, the end of the program. This sticks all of the gathered data into a data.frame, saves the file, and then sends an email to my phone. 
+
+
+# Analysis
+There are several things I want to do with this data, first I need to drop the shows that failed to have data gathered for them. (There are any number of reasons why this might have happened, but lets get an estimate on how much of the data this happened to)
+
+### Bad Data
+```{r}
+Raw_Data <- read.csv("Top 9500 Anime Data.csv", stringsAsFactors = F)
+#Since score was gathered from the page of the show, if the score is missing the show failed to have data gathered for it
+#Therefore we should drop any shows without a score IE is.na==TRUE
+Complete_Data <- Raw_Data[!is.na(Raw_Data$Score),]
+print(paste("The Percentage of Failed Shows is ",round((1-nrow(Complete_Data)/nrow(Raw_Data))*100, digits = 2), "%", sep = ""))
+```
+This is a pretty low number of shows it failed to gather data for, so we are still fine. Honestly the main reason this happened is because some shows have non standard characters in them, and I couldn't be bothered to format this to accept unicode. 
+
+
+### Sleeper Shows
+Something that's always interested me is finding shows that are actually really good, but no one has heard about them. My intuition tells me that there should be a relationship between number of users and score, lets check!
+
+(Note, each count of users means someone has this show in their watched, watching, dropped, or on-hold list, but NOT in their plan-to-watch)
+
+```{r}
+ggplot(Complete_Data) + 
+  geom_point(aes(x = Users, y = Score)) +
+  ggtitle("Users vs Score")
+```
+
+Well that isnt very helpful, there's a few shows with LOTS of users, but most have only a few thousand, so lets look again with a logarithmic rescaling. 
+
+```{r}
+ggplot(Complete_Data) + 
+  geom_point(aes(x = log(Users), y = Score)) + 
+  labs(x = "Logarithmically Scaled Users") + 
+  ggtitle("Scaled Users vs Score")
+```
+
+Much better, lets see what else we can get
+
+```{r}
+ggplot(Complete_Data, aes(log(Users), Score)) + 
+  geom_point() + 
+  labs(x = "Logarithmically Scaled Users") + 
+  geom_smooth(method = 'lm') + 
+  ggtitle("Scaled Users vs Score \nwith Linear Model")
+```
+
+Lets build a linear model of this, and do some more work to see if we can find the outlier shows (Good and Bad)
+
+```{r}
+linear_model <- lm(Score~log(Users), data=Complete_Data)
+Residual_Model <- Complete_Data %>% 
+  mutate(linear_model$residuals)
+colnames(Residual_Model)[ncol(Residual_Model)] <- "Residuals"
+Residual_Model <- Residual_Model %>% select(Show_Name, Score, Users, Residuals)
+Tenth_Smallest_of_Largest_Residuals <- min(sort(Residual_Model$Residuals, decreasing = T)[1:10])
+Top_Residual_Shows <- Residual_Model[Residual_Model$Residuals>=Tenth_Smallest_of_Largest_Residuals,]
+head(Top_Residual_Shows, n = 10)
+```
+In theory, these ten shows are the best unknown shows. An issue with this model however is that some of these shows are new, and just havent had time to be picked up by everyone yet, however in this case, it just means these shows are hot/new items. 
+
+lets do the same thing and get the "Worst" 10 shows
+
+```{r}
+Tenth_Largest_of_Smallest_Residuals <- max(sort(Residual_Model$Residuals, decreasing = F)[1:10])
+Low_Residual_Shows <- Residual_Model[Residual_Model$Residuals<=Tenth_Largest_of_Smallest_Residuals,]
+head(Low_Residual_Shows, n = 10)
+
+```
+
+These ten shows are the so called "Worst" 10 shows, and should be avoided like the plague.
+
+
+### Best Studios
+
+A logical question one might now ask, is which studio creates the best anime?
+This is a question that has been asked many times though the years, and is highly debated. However using this we can now try and figure that out to some extent. 
+
+Something unavoidable is how do you deal with collaborations? Lets do some analysis while leaving any collaborations out. (Collaborations are listed under Studios as "\<Studio1\>, \<Studio2\>, ... , \<StudioN\>", therefore as no studio has a comma in their name, we can drop all listings with a comma)
+
+```{r}
+No_Collab_Studio_Data <- Complete_Data[!grepl(",", Complete_Data$Studios),] %>%
+  select(Show_Name, Score, Studios) 
+factored <- No_Collab_Studio_Data
+factored$Studios <- factor(factored$Studios)
+studios <- c()
+shows <- c()
+scores <- c()
+for(each in unique(No_Collab_Studio_Data$Studios)){
+  studios <- c(studios, each)
+  shows <- c(shows, nrow(No_Collab_Studio_Data[No_Collab_Studio_Data$Studios==each,]))
+  scores <- c(scores, sum(No_Collab_Studio_Data$Score[No_Collab_Studio_Data$Studios==each])/nrow(No_Collab_Studio_Data[No_Collab_Studio_Data$Studios==each,]))
+}
+data <- data.frame(studios, shows, scores)
+ggplot(data = data[shows>20,], aes(x = log(shows)+1, y = scores)) + 
+  geom_point() + 
+  labs(x = "Logarithmically Scaled Show Count", y = "Average Score") + 
+  geom_smooth(method = 'lm') + 
+  ggtitle("Studios by Show Count and \nAverage Score")
+```
+
+Sadly this really doesnt reveal any real trend, the data is just lacking. I only included studios with more than 20 shows because we aren't looking for cult favorite studios or one-hit-wonder studios. We can pick out a few studios however, lets look at the residual for this as we did above and see which 3 studios stand out, both good and bad. 
+
+```{r}
+linear_model <- lm(data = data[shows>20,], scores~log(shows))
+Residual_Model <- data[shows>20,] %>% 
+  mutate(linear_model$residuals)
+colnames(Residual_Model)[ncol(Residual_Model)] <- "Residuals"
+Min_Of_Top_Three <- min(sort(Residual_Model$Residuals, decreasing = T)[1:3])
+Top_Three_Studios <- Residual_Model[Residual_Model$Residuals >= Min_Of_Top_Three,]
+head(Top_Three_Studios)
+
+```
+
+Those are the good
+
+Here are the bad
+```{r}
+Max_Of_Bottom_Three <- max(sort(Residual_Model$Residuals, decreasing = F)[1:3])
+Bottom_Three_Studios <- Residual_Model[Residual_Model$Residuals <= Max_Of_Bottom_Three,]
+head(Bottom_Three_Studios)
+```
+
+I would say these three "bad" studios are more revealing than the three "good" ones. The ability for a studio to pick up good shows feels rather random, where if a studio like DLE doesnt care what they are picking up... they will only be offered material that doesn't have a lot of promise
+
+### Source Material
+
+Anime itself springs up from many sources, very rarely do they animate an original anime without it being in some other material first. I've personally always wondered if anime from a particular source end up doing better then other anime from other source material. 
+
+Lets take a look at scores based on source material. 
+
+```{r}
+Source_Data <- Complete_Data %>%
+  select(Show_Name, Score, Rank, Source)
+
+Summary <- summary(factor(Source_Data$Source))
+Summary
+```
+Looking at this we get a breakdown of where these anime are originating from. As for which entries to drop, for now lets drop "Other" and "Unknown" since their data is useless to us.
+```{r}
+Summary <- Summary[!(names(Summary) %in% c("Other", "Unknown"))]
+Summary
+```
+"Digital Manga", "Radio", "Picture Book", "Card Game", and "Book" have a low number of observations, lets keep them but scale the color of the plot with number of observations.
+
+Now to plot what we have. 
+
+```{r}
+Source_Data2 <- Source_Data[Source_Data$Source %in% names(Summary),]
+colfunc <- colorRampPalette(c("black","black", "darkred", "pink", "white"))
+ggplot(Source_Data2, aes(x = factor(Source), y = Score)) + 
+  geom_violin(aes(fill = Source_Data2$Source)) +
+  scale_fill_manual(guide=F,values= colfunc(round(log(base=2.7,max(Summary))))[round(log(base=2.7,Summary))]) +
+  geom_boxplot(width = .1) + 
+  labs(x = "Source Material", y = "Score") + 
+  guides(colour = guide_legend(show=F)) +
+  theme(axis.text.x = element_text(angle = 80, hjust = 1)) +
+  geom_hline(yintercept = sum(Source_Data2$Score)/nrow(Source_Data2)) + 
+  ggtitle("Violin Plot of Source Material VS Score")
+```
+
+Couple things about this plot. 
+As the color goes from black -> white, the number of observations goes from low -> high. 
+The black horizontal line is the mean rating for anime, 6.79.
+there is a boxplot within each violin graph to show mean and quartile ranges as well as outliers for each source. 
+
+
+This graph now highlights which two sources provide the most anime (Manga adaptations and Original works). Shows which source provides the highest quality of show on average (Light novels), as well as which provides the worst (Digital Manga, although Music is also pretty bad)
+
+### Type of Release
+
+When an anime is released, there are five different ways they classify it. 
+Movie, ONA, OVA, Special, TV.
+MyAnimeList includes a 6th way, which is Music. Music referes to the release of the OST or Records of music from a show. I will be discouting this type of data though my analysis. 
+
+```{r}
+Type_Data <- Complete_Data[Complete_Data$Type!="Music",] %>%
+  select(Show_Name, Type, Episodes, Rank, Score, Popularity)
+summary(factor(Type_Data$Type))
+```
+Now we can display more specialized data about each of these
+
+```{r}
+ggplot(Type_Data, aes(y = Score, x = factor(Type))) +
+  geom_boxplot() + 
+  labs(x = "Type")  + 
+  ggtitle("Type of Release with Score")
+
+```
+
+This boxplot shows TV release anime are generally rated higher than anime that are released as an ONA (Original Net Animation)
+
+This would be important if coupled with something like genre, where you can see which genre does well in which category. 
+
+### Genre
+
+Very self explanitory, lets break down all of the shows by genre and see what happens. 
+
+```{r}
+All_Genre <- c()
+for(each in unique(Complete_Data$Genre)){
+  All_Genre <- c(All_Genre, as.vector(strsplit(each, split = ",")[[1]]))
+}
+All_Genre <- unique(gsub("^\\s*||\\s*$", "", All_Genre))
+All_Genre <- All_Genre[1:(length(All_Genre)-1)] #Gets rid of "No Genre Have been added yet"
+New_Listing <- Complete_Data[grep(All_Genre[1], Complete_Data$Genre),]
+New_Listing$Genre <- All_Genre[1]
+for(each in All_Genre[2:length(All_Genre)]){
+  New_Table <- Complete_Data[grep(each, Complete_Data$Genre),]
+  New_Table$Genre <- each
+  New_Listing <- bind_rows(New_Listing, New_Table)
+}
+Table_By_Genre <- New_Listing
+All_Genre
+```
+
+At this point, we have duplicated every row based on the number of genre that show has. We can also filter by specific genre, and compare by type. 
+
+For example, I chose 5 Genre out of the 40 in the dataset, and looked at where each is met with the most success.  
+
+```{r}
+No_Music_by_Genre <- Table_By_Genre[Table_By_Genre$Type!="Music",]
+Categories <- c("Kids", "Historical", "Drama", "Romance", "Mystery")
+Table_To_Plot <- No_Music_by_Genre[No_Music_by_Genre$Genre %in% Categories,]
+ggplot(Table_To_Plot, aes(x = factor(Type), y = Score, fill = Genre)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Type of Show") +
+  ggtitle("Type of Show with Score \nAcross 5 Popular Genre")
+
+```
+
+Drama shows do best as a movie or TV series.
+Historical (Tan) shows do very well as Original Net Animations (ONA) compared to the others, as historical shows are usually slightly behind. 
+Anime aimed at kids does rather poor if it's an ONA, pretty decent if it's a Movie. 
+Mystery does FANTASTIC as a movie.
+Romance does best as movies or ONA. 
+
+Furthermore this can be done to compare if a show would do better as a movie or a full length TV series. Say you had the plot for a Horror Mystery story aimed at kids. 
+Look no further
+```{r}
+Categories <- c("Mystery", "Horror", "Kids")
+Movie_vs_TV <- No_Music_by_Genre[No_Music_by_Genre$Genre %in% Categories,]
+Movie_vs_TV <- Movie_vs_TV[Movie_vs_TV$Type %in% c("Movie", "TV", "Special"),]
+ggplot(Movie_vs_TV, aes(x = factor(Type), y = Score)) + 
+  geom_violin(data = Movie_vs_TV, aes(x = factor(Type), y = Score)) +
+  geom_boxplot(data = Movie_vs_TV, aes(x = factor(Type), y = Score, fill = Genre)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Movie or TV Series") +
+  ggtitle("Horror-Kids-Mystery Genre\nWhich Type of Release Works Best?")
+
+```
+
+A producer could see the safe thing to do might be to make it into a movie. 
+
+
+# Final Thoughts
+### Why is this Important? 
+The anime industry is currently reaching other countries like never before. 20 years ago, the idea of a celebrity announcing that they were a fan of anime (Moreover of obscure anime), was unheard of. However, it seems like every week something happens that brings anime culture to the front of the public's attention. Due to these brief but powerful spikes in anime's popularity, many have speculated if anime will become mainstream in the near future. My belief is that it will be a culmination of various small things over the next several years, rather than one great big event, that will bring a new light to the community. Analysis such as this provides producers with potentially new insights and advantages when pushing material to market, further increasing their own profit and causing them to create better product, and the better the product the faster and easier it is for the general public to adapt to this rising culture.   
+
+
+### To the Future? 
+Analysing something that interests me like anime is something I've wanted to do for a while. Writing and running the code to scrape data from the web took far longer than I anticipated, causing my analysis to be slightly rushed. However, before I attempted to do any further analysis to this data, I would rewrite the entire thing from the ground up. I might also be tempted to try and implement my own viewer of some kind, something that compares one show to others produced by it's studio or within it's genre. I'd also want to create some kind of predictor for "Given Studio X and genres \{a, b, c, ..., z\}, what is the estimated score this show will recieve?". Getting monetary data for each show would allow me to vastly improve my analysis, however where I might accurately gather this data is something I do not know. 
+
+
+-Stephen 
+
